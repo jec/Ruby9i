@@ -27,12 +27,37 @@ VALUE cTimestamp;
 VALUE cTimestampTZ;
 VALUE cTimestampLocalTZ;
 VALUE cBaseInterval;
-VALUE cIntervalYearToMonth;
-VALUE cIntervalDayToSecond;
+VALUE cIntervalYM;
+VALUE cIntervalDS;
 VALUE cStatement;
 
 /* global exception objects */
 VALUE eError;
+
+/* global hash for ocitype -> class */
+VALUE TYPE_REGISTRY;
+
+/* global IDs */
+ID ID_ADD;
+ID ID_ASSIGN;
+ID ID_FSPRECISION;
+ID ID_GM;
+ID ID_LFPRECISION;
+ID ID_LOCAL;
+ID ID_NEW;
+ID ID_OCI_ARRAY;
+ID ID_OCI_DEFINE;
+ID ID_SELECTNEW;
+ID ID_SIZE;
+ID ID_SUB;
+ID ID_SUBSCRIPT;
+ID ID_TO_A;
+ID ID_TO_BUILTIN;
+ID ID_TO_F;
+ID ID_TO_I;
+ID ID_TO_S;
+ID ID_USEC;
+ID ID_UTC_OFFSET;
 
 void Init_Error(void);
 void Init_Handle(void);
@@ -47,8 +72,8 @@ void Init_Timestamp(void);
 void Init_TimestampTZ(void);
 void Init_TimestampLocalTZ(void);
 void Init_BaseInterval(void);
-void Init_IntervalYearToMonth(void);
-void Init_IntervalDayToSecond(void);
+void Init_IntervalYM(void);
+void Init_IntervalDS(void);
 void Init_Statement(void);
 
 void Init_ruby9i()
@@ -71,18 +96,19 @@ void Init_ruby9i()
    rb_global_variable(&cTimestampTZ);
    rb_global_variable(&cTimestampLocalTZ);
    rb_global_variable(&cBaseInterval);
-   rb_global_variable(&cIntervalYearToMonth);
-   rb_global_variable(&cIntervalDayToSecond);
+   rb_global_variable(&cIntervalYM);
+   rb_global_variable(&cIntervalDS);
    rb_global_variable(&cStatement);
    rb_global_variable(&eError);
+   rb_global_variable(&TYPE_REGISTRY);
 
    /* initialize the OCI environment */
    if (env_h == NULL)
    {
       if (OCIEnvCreate(&env_h, OCI_OBJECT, 0, 0, 0, 0, 0, 0))
-         error_raise("Could not initialize OCI environment", "Init_liboci9", __FILE__, __LINE__);
+         error_raise("Could not initialize OCI environment", "Init_ruby9i", __FILE__, __LINE__);
       if (OCIHandleAlloc(env_h, (dvoid**) &err_h, OCI_HTYPE_ERROR, 0, 0))
-         error_raise("Could not allocate error handle", "Init_liboci9", __FILE__, __LINE__);
+         error_raise("Could not allocate error handle", "Init_ruby9i", __FILE__, __LINE__);
    }
 
    eError = rb_define_class_under(mOracle9, "Error", rb_eRuntimeError);
@@ -99,8 +125,33 @@ void Init_ruby9i()
    cTimestampTZ = rb_define_class_under(mOracle9, "TimestampTZ", cBaseTimestamp);
    cTimestampLocalTZ = rb_define_class_under(mOracle9, "TimestampLocalTZ", cBaseTimestamp);
    cBaseInterval = rb_define_class_under(mOracle9, "BaseInterval", cDatatype);
-   cIntervalYearToMonth = rb_define_class_under(mOracle9, "IntervalYearToMonth", cBaseInterval);
-   cIntervalDayToSecond = rb_define_class_under(mOracle9, "IntervalDayToSecond", cBaseInterval);
+   cIntervalYM = rb_define_class_under(mOracle9, "IntervalYM", cBaseInterval);
+   cIntervalDS = rb_define_class_under(mOracle9, "IntervalDS", cBaseInterval);
+
+   /* initialize IDs */
+   ID_ADD = rb_intern("+");
+   ID_ASSIGN = rb_intern("assign");
+   ID_FSPRECISION = rb_intern("fsprecision");
+   ID_GM = rb_intern("gm");
+   ID_LFPRECISION = rb_intern("lfprecision");
+   ID_LOCAL = rb_intern("local");
+   ID_NEW = rb_intern("new");
+   ID_OCI_ARRAY = rb_intern("oci_array");
+   ID_OCI_DEFINE = rb_intern("oci_define");
+   ID_SELECTNEW = rb_intern("selectnew");
+   ID_SIZE = rb_intern("size");
+   ID_SUB = rb_intern("sub");
+   ID_SUBSCRIPT = rb_intern("[]");
+   ID_TO_A = rb_intern("to_a");
+   ID_TO_BUILTIN = rb_intern("to_builtin");
+   ID_TO_F = rb_intern("to_f");
+   ID_TO_I = rb_intern("to_i");
+   ID_TO_S = rb_intern("to_s");
+   ID_USEC = rb_intern("usec");
+   ID_UTC_OFFSET = rb_intern("utc_offset");
+
+   /* initialize type map */
+   TYPE_REGISTRY = rb_hash_new();
 
    /* define individual classes */
    Init_Error();
@@ -117,6 +168,6 @@ void Init_ruby9i()
    Init_TimestampTZ();
    Init_TimestampLocalTZ();
    Init_BaseInterval();
-   Init_IntervalYearToMonth();
-   Init_IntervalDayToSecond();
+   Init_IntervalYM();
+   Init_IntervalDS();
 }

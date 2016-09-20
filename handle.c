@@ -10,17 +10,23 @@
 
 #include "ruby9i.h"
 
-void handle_free(void *p)
+void handle_mark(void *bp)
 {
-   /* Don't think anything is necessary here. OCI will dispose of the space
-    * held by the handles when they're no longer used (e.g. disconnect).
-    */
+   printf("in handle_mark for %p\n", bp); /* XXX for testing purposes to know when the gc runs */
+}
+
+VALUE handle_wrap(dvoid *hdl)
+{
+   oci9_handle *hp;
+   VALUE handle = Data_Make_Struct(cHandle, oci9_handle, handle_mark, 0, hp);
+   hp->ptr = hdl;
+   return handle;
 }
 
 VALUE handle_new(VALUE htype)
 {
    oci9_handle *hp;
-   VALUE handle = Data_Make_Struct(cHandle, oci9_handle, 0, handle_free, hp);
+   VALUE handle = Data_Make_Struct(cHandle, oci9_handle, handle_mark, 0, hp);
    rb_obj_call_init(handle, 1, &htype);
    return handle;
 }

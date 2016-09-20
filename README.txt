@@ -1,0 +1,48 @@
+The Ruby9i Library
+
+   This is Ruby9i, a Ruby library that provides access to Oracle9i using the
+   Oracle Call Interface.  It supports (or is planned to support) all major
+   Oracle9i datatypes and object-relational features.  It provides two APIs,
+   one implemented in the C extension (the "native" interface), and one
+   implemented in a Ruby module that is DBI-compatible. Please visit the home
+   of Ruby9i <http://jimcain.us/ruby9i/> for more information.
+
+
+Requirements
+
+   The Ruby9i Library was developed using Ruby 1.8.0pre3 and Oracle9i Release 2
+   (v9.2.0.1.0) on Mandrake Linux 9.1. It requires an Oracle9i client
+   installation.  In addition, building Ruby9i requires the OCI development
+   headers.
+
+
+Building And Installation
+
+   ruby extconf.rb
+   make
+   make site-install
+
+
+Documentation
+
+   Documentation is available for Ruby9i, typically in a separate tarball.  It
+   is available at <http://jimcain.us/ruby9i/>.
+
+
+Support
+
+   No formal support for Ruby9i is offered. You may contact the author at
+   ruby9i@jimcain.us. A mailing list will be available soon.
+
+
+License
+
+   The Ruby9i Library is licensed under a slightly edited Artistic License. See
+   the file LICENSE.txt.
+
+
+Warranty
+
+   THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED
+   WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
+   MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.

@@ -33,7 +33,7 @@ VALUE db_initialize(int argc, VALUE *argv, VALUE self)
    Data_Get_Struct(v_ses_h, oci9_handle, ses_h);
 
    /* attach server */
-   if (OCIServerAttach(svr_h->ptr, err_h, STR2CSTR(db), RSTRING(db)->len, OCI_DEFAULT))
+   if (OCIServerAttach(svr_h->ptr, err_h, RSTRING(db)->ptr, RSTRING(db)->len, OCI_DEFAULT))
       error_raise("Could not attach to Oracle server", "db_initialize", __FILE__, __LINE__);
 
    /* set the server handle in the service handle */
@@ -41,9 +41,9 @@ VALUE db_initialize(int argc, VALUE *argv, VALUE self)
       error_raise("Could not set server in service context", "db_initialize", __FILE__, __LINE__);
 
    /* set username & password in authentication handle */
-   if (OCIAttrSet(ses_h->ptr, OCI_HTYPE_SESSION, STR2CSTR(user), RSTRING(user)->len, OCI_ATTR_USERNAME, err_h))
+   if (OCIAttrSet(ses_h->ptr, OCI_HTYPE_SESSION, RSTRING(user)->ptr, RSTRING(user)->len, OCI_ATTR_USERNAME, err_h))
       error_raise("Could not set session username", "db_initialize", __FILE__, __LINE__);
-   if (OCIAttrSet(ses_h->ptr, OCI_HTYPE_SESSION, STR2CSTR(pass), RSTRING(pass)->len, OCI_ATTR_PASSWORD, err_h))
+   if (OCIAttrSet(ses_h->ptr, OCI_HTYPE_SESSION, RSTRING(pass)->ptr, RSTRING(pass)->len, OCI_ATTR_PASSWORD, err_h))
       error_raise("Could not set session password", "db_initialize", __FILE__, __LINE__);
 
    /* begin session */
@@ -58,9 +58,9 @@ VALUE db_initialize(int argc, VALUE *argv, VALUE self)
    rb_iv_set(self, "@svc_h", v_svc_h);
    rb_iv_set(self, "@svr_h", v_svr_h);
    rb_iv_set(self, "@ses_h", v_ses_h);
-   rb_define_attr(CLASS_OF(self), "svc_h", 1, 0);
-   rb_define_attr(CLASS_OF(self), "svr_h", 1, 0);
-   rb_define_attr(CLASS_OF(self), "ses_h", 1, 0);
+   //rb_define_attr(CLASS_OF(self), "svc_h", 1, 0);
+   //rb_define_attr(CLASS_OF(self), "svr_h", 1, 0);
+   //rb_define_attr(CLASS_OF(self), "ses_h", 1, 0);
 
    return self;
 }

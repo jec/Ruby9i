@@ -25,6 +25,11 @@ dvoid *datatype_get_session_handle(VALUE self)
    return hdl;
 }
 
+void datatype_mark(void *bp)
+{
+   printf("in datatype_mark for %p\n", bp); /* XXX for testing purposes to know when the gc runs */
+}
+
 void datatype_free(void *bp)
 {
    /* free the descriptor for the OCI type if there is one */
@@ -33,67 +38,64 @@ void datatype_free(void *bp)
          error_raise("Could not free descriptor", "datatype_free", __FILE__, __LINE__);
 }
 
+VALUE datatype_select_coltype(int argc, VALUE *argv, VALUE self)
+{
+   ub2 col_type;
+   VALUE v_svc_h, v_ses_h, v_parm_h, restary;
+   oci9_handle *parm_h;
+
+   rb_scan_args(argc, argv, "4", &v_svc_h, &v_ses_h, &v_parm_h, &restary);
+   Data_Get_Struct(v_parm_h, oci9_handle, parm_h);
+
+   /* get column type */
+   if (OCIAttrGet(parm_h->ptr, OCI_DTYPE_PARAM, &col_type, 0, OCI_ATTR_DATA_TYPE, err_h))
+      error_raise("Could not get column type", "datatype_select_coltype", __FILE__, __LINE__);
+
+   return rb_ary_new3(1, INT2FIX(col_type));
+}
+
+/* used by Statement to create a suitable receiver for SELECT data */
+VALUE datatype_selectnew(int argc, VALUE *argv, VALUE klass)
+{
+printf("in datatype_selectnew for %s\n", rb_class2name(klass));
+   VALUE typehash, v_svc_h, v_ses_h, v_parm_h, restary;
+   rb_scan_args(argc, argv, "5", &typehash, &v_svc_h, &v_ses_h, &v_parm_h, &restary);
+printf("typehash=%s\n", RSTRING(rb_funcall(typehash, rb_intern("inspect"), 0))->ptr);
+
+   /* ask the class to get the column type & any additional parameters */
+   VALUE typeary = rb_funcall(klass, rb_intern("select_coltype"), 4, v_svc_h, v_ses_h, v_parm_h, restary);
+   VALUE type = rb_ary_entry(typeary, 0);
+printf("type=%d\n", FIX2INT(type));
+
+   /* add any additional parameters to restary */
+   rb_funcall(restary, rb_intern("concat"), 1, rb_funcall(typeary, ID_SUBSCRIPT, 2, INT2FIX(1), 
+      INT2FIX(FIX2INT(rb_funcall(typeary, ID_SIZE, 0)) - 1)));
+
+   /* look up class that handles type */
+   VALUE dispatch_ary = rb_hash_aref(typehash, type);
+   if (NIL_P(dispatch_ary))
+      rb_raise(rb_eTypeError, "Unsupported SQL data type %d in SELECT list", FIX2INT(type));
+
+   /* if 2nd arg is not nil, there are subclasses of the class, so call its #selectnew */
+   VALUE subclass_hash = rb_ary_entry(dispatch_ary, 1);
+   if (RTEST(subclass_hash))
+   {
+      VALUE argv2[] = { subclass_hash, v_svc_h, v_ses_h, v_parm_h, restary };
+      return rb_funcall2(rb_ary_entry(dispatch_ary, 0), ID_SELECTNEW, 5, argv2);
+   }
+   /* else there are no subclasses of the class, so call its #new */
+   else
+   {
+      /* bundle args into single Ruby array */
+      VALUE ary = rb_funcall(rb_ary_new3(4, v_svc_h, v_ses_h, v_parm_h, restary), rb_intern("flatten!"), 0);
+      return rb_funcall2(rb_ary_entry(dispatch_ary, 0), ID_NEW, 1, &ary);
+   }
+}
+
 VALUE datatype_new(int argc, VALUE *argv, VALUE klass)
 {
-   VALUE newclass = Qnil;
-   VALUE datatype = Qnil;
    oci9_define_buf *bp;
-
-   if (argc == 5)
-      /* argv[] = { internal SQLT, size, precision, scale, ses_h }
-       * used only when defining select-list in Statement#allocate_row
-       *
-       * create object of appropriate type based on internal type
-       */
-      switch ((ub2)FIX2INT(argv[0]))
-      {
-         case SQLT_RDD: /* rowid */
-            newclass = cRowid;
-            break;
-
-         case SQLT_CHR: /* varchar2 */
-         case SQLT_AFC: /* char */
-            newclass = cVarchar;
-            break;
-
-         case SQLT_NUM: /* number */
-         case SQLT_INT: /* integer */
-         case SQLT_FLT: /* float */
-            newclass = cNumber;
-            break;
-
-         case SQLT_DAT: /* date */
-            newclass = cDate;
-            break;
-
-         case SQLT_TIMESTAMP: /* timestamp */
-            newclass = cTimestamp;
-            break;
-
-         case SQLT_TIMESTAMP_TZ: /* timestamp with time zone */
-            newclass = cTimestampTZ;
-            break;
-
-         case SQLT_TIMESTAMP_LTZ: /* timestamp with local time zone */
-            newclass = cTimestampLocalTZ;
-            break;
-
-         case SQLT_INTERVAL_YM: /* interval year to month */
-            newclass = cIntervalYearToMonth;
-            break;
-
-         case SQLT_INTERVAL_DS: /* interval day to second */
-            newclass = cIntervalDayToSecond;
-            break;
-
-         default:
-            rb_raise(rb_eArgError, "Unsupported SQL data type %d in SELECT list", (ub2) FIX2INT(argv[0]));
-      }
-   else
-      /* called from subclass#new */
-      newclass = klass;
-
-   datatype = Data_Make_Struct(newclass, oci9_define_buf, 0, datatype_free, bp);
+   VALUE datatype = Data_Make_Struct(klass, oci9_define_buf, datatype_mark, datatype_free, bp);
    bp->val = NULL;
    bp->desc = NULL;
    bp->dtype = 0;
@@ -106,29 +108,45 @@ VALUE datatype_new(int argc, VALUE *argv, VALUE klass)
 
 VALUE datatype_initialize(int argc, VALUE *argv, VALUE self)
 {
-   /* set instance vars */
-   if (argc == 5)
+   if (argc == 1 && TYPE(argv[0]) == T_ARRAY)
    {
-      if (TYPE(argv[2]) != T_FIXNUM)
-         rb_raise(rb_eArgError, "argument 3 is wrong type %s (expected Fixnum)", rb_class2name(argv[0]));
-      if (TYPE(argv[3]) != T_FIXNUM)
-         rb_raise(rb_eArgError, "argument 4 is wrong type %s (expected Fixnum)", rb_class2name(argv[0]));
-      rb_iv_set(self, "@precision", argv[2]);
-      rb_iv_set(self, "@scale", argv[3]);
-      rb_iv_set(self, "@ses_h", argv[4]);
-   }
-   else
-   {
-      if (NIL_P(rb_iv_get(self, "@precision")))
-         rb_iv_set(self, "@precision", INT2FIX(0));
-      if (NIL_P(rb_iv_get(self, "@scale")))
-         rb_iv_set(self, "@scale", INT2FIX(0));
-      rb_iv_set(self, "@ses_h", Qnil);
+      /* used by Statement to pick a type to receive column data
+       * argv[0] = [ svc_h, ses_h, parm_h, position ]
+       *
+       * set some instance vars
+       */
+      rb_iv_set(self, "@svc_h", rb_ary_entry(argv[0], 0));
+      rb_iv_set(self, "@ses_h", rb_ary_entry(argv[0], 1));
+
+      /* prepare empty column_info hash */
+      rb_iv_set(self, "@column_info", rb_hash_new());
+      rb_define_attr(CLASS_OF(self), "column_info", 1, 0);
    }
 
-   /* make public read-only attributes */
-   rb_define_attr(CLASS_OF(self), "precision", 1, 0);
-   rb_define_attr(CLASS_OF(self), "scale", 1, 0);
+   return self;
+}
+
+VALUE datatype_oci_define(VALUE self, VALUE v_stmt_h, VALUE position)
+{
+   /* get my pointers */
+   oci9_define_buf *bp;
+   Data_Get_Struct(self, oci9_define_buf, bp);
+
+   /* get statement handle */
+   oci9_handle *stmt_h;
+   Data_Get_Struct(v_stmt_h, oci9_handle, stmt_h);
+
+   /* The define handle is owned by the statement. When stmt_h is destroyed,
+    * all associated def_h will be destroyed.
+    */
+   OCIDefine *def_h = NULL;
+
+   /* define object as output for column at position */
+   if (OCIDefineByPos(stmt_h->ptr, &def_h, err_h, FIX2INT(position), bp->val, bp->len, bp->sqlt,
+         (dvoid*) &bp->ind, 0, 0, OCI_DEFAULT))
+      error_raise("OCIDefineByPos failed", "datatype_oci_define", __FILE__, __LINE__);
+   VALUE v_def_h = handle_wrap(def_h);
+   rb_iv_set(self, "@def_h", v_def_h);
 
    return self;
 }
@@ -142,23 +160,45 @@ VALUE datatype_indicator(VALUE self)
    return INT2FIX(bp->ind);
 }
 
+VALUE datatype_set_null(VALUE self)
+{
+   oci9_define_buf *bp;
+   Data_Get_Struct(self, oci9_define_buf, bp);
+   bp->ind = -1;
+   return self;
+}
+
+VALUE datatype_is_null(VALUE self)
+{
+   oci9_define_buf *bp;
+   Data_Get_Struct(self, oci9_define_buf, bp);
+
+   if (bp->ind == 0)
+      return Qfalse;
+   return Qtrue;
+}
+
 /* attempt to convert to a built-in type */
 VALUE datatype_to_builtin(VALUE self)
 {
    oci9_define_buf *bp;
    Data_Get_Struct(self, oci9_define_buf, bp);
 
+   /* by default return self if not null, else return nil */
    if (bp->ind == 0)
-      /* by default just return self; subclasses should override this if necessary */
       return self;
-   else
-      return Qnil;
+   return Qnil;
 }
 
 void Init_Datatype()
 {
    rb_define_singleton_method(cDatatype, "new", datatype_new, -1);
+   rb_define_singleton_method(cDatatype, "selectnew", datatype_selectnew, -1);
+   rb_define_singleton_method(cDatatype, "select_coltype", datatype_select_coltype, -1);
    rb_define_method(cDatatype, "initialize", datatype_initialize, -1);
+   rb_define_method(cDatatype, "oci_define", datatype_oci_define, 2);
    rb_define_method(cDatatype, "indicator", datatype_indicator, 0);
+   rb_define_method(cDatatype, "null?", datatype_is_null, 0);
+   rb_define_method(cDatatype, "null", datatype_set_null, 0);
    rb_define_method(cDatatype, "to_builtin", datatype_to_builtin, 0);
 }

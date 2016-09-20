@@ -47,13 +47,38 @@ extern VALUE cTimestamp;
 extern VALUE cTimestampTZ;
 extern VALUE cTimestampLocalTZ;
 extern VALUE cBaseInterval;
-extern VALUE cIntervalYearToMonth;
-extern VALUE cIntervalDayToSecond;
+extern VALUE cIntervalYM;
+extern VALUE cIntervalDS;
 extern VALUE cStatement;
 
 extern VALUE eError;
+extern VALUE ERR_LOC_PTR, ERR_LOC_PTR_ESC;
+
+extern VALUE TYPE_REGISTRY;
+
+extern ID ID_ADD;
+extern ID ID_ASSIGN;
+extern ID ID_FSPRECISION;
+extern ID ID_GM;
+extern ID ID_LFPRECISION;
+extern ID ID_LOCAL;
+extern ID ID_NEW;
+extern ID ID_OCI_ARRAY;
+extern ID ID_OCI_DEFINE;
+extern ID ID_SELECTNEW;
+extern ID ID_SIZE;
+extern ID ID_SUB;
+extern ID ID_SUBSCRIPT;
+extern ID ID_TO_A;
+extern ID ID_TO_BUILTIN;
+extern ID ID_TO_F;
+extern ID ID_TO_I;
+extern ID ID_TO_S;
+extern ID ID_USEC;
+extern ID ID_UTC_OFFSET;
 
 VALUE handle_new(VALUE);
+VALUE handle_wrap(dvoid*);
 VALUE stmt_prepare(VALUE, VALUE, VALUE, VALUE, VALUE);
 VALUE stmt_bind_params(VALUE, VALUE);
 VALUE stmt_execute(VALUE);
@@ -61,7 +86,12 @@ VALUE stmt_fetch(VALUE);
 VALUE stmt_rows(VALUE);
 VALUE stmt_finish(VALUE);
 dvoid *datatype_get_session_handle(VALUE);
-VALUE datatype_new(int, VALUE *, VALUE);
-VALUE error_exception(int, VALUE *, VALUE);
-void error_raise(char *, char *, char *, int);
-void error_raise_sql(char *, char *, char *, int, char *, int);
+VALUE datatype_new(int, VALUE*, VALUE);
+VALUE datatype_define(VALUE, VALUE, VALUE, OCIParam*, int);
+VALUE error_exception(int, VALUE*, VALUE);
+void error_raise(char*, char*, const char*, int);
+void error_raise_sql(char*, char*, char*, int, char*, int);
+
+/* registry functions */
+void registry_add(VALUE, int, VALUE);
+VALUE registry_get_super(VALUE, int);

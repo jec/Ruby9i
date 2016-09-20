@@ -19,22 +19,10 @@ VALUE rowid_initialize(int argc, VALUE *argv, VALUE self)
    oci9_define_buf *bp;
    Data_Get_Struct(self, oci9_define_buf, bp);
 
-   switch (argc)
-   {
-      case 5:
-         /* argv[] = { internal SQLT, size, precision, scale, ses_h }
-          * used only when defining select-list in Statement#allocate_row
-          *
-          * allocate a rowid descriptor
-          */
-         if (OCIDescriptorAlloc(env_h, &bp->desc, OCI_DTYPE_ROWID, 0, 0))
-            error_raise("Could not allocate ROWID descriptor", "rowid_initialize", __FILE__, __LINE__);
-         bp->len = sizeof(bp->desc);
-         break;
-
-      default:
-         rb_raise(rb_eArgError, "wrong # of arguments(%d for 5)", argc);
-   }
+   /* allocate a rowid descriptor */
+   if (OCIDescriptorAlloc(env_h, &bp->desc, OCI_DTYPE_ROWID, 0, 0))
+      error_raise("Could not allocate ROWID descriptor", "rowid_initialize", __FILE__, __LINE__);
+   bp->len = sizeof(bp->desc);
 
    /* read/write this as an OCIRowid */
    bp->sqlt = SQLT_RDD;
@@ -48,7 +36,7 @@ VALUE rowid_do_to_s(oci9_define_buf *bp)
 {
    char buf[ROWID_MAX_LEN];
    ub2 buflen = (ub2) ROWID_MAX_LEN;
-   if (OCIRowidToChar((OCIRowid*) bp->desc, (OraText*) buf, &buflen, err_h))
+   if (OCIRowidToChar((OCIRowid*) bp->desc, (OraText*) buf, (ub2*) &buflen, (OCIError*) err_h))
       error_raise("Could not convert ROWID to text", "rowid_do_to_s", __FILE__, __LINE__);
    return rb_str_new(buf, buflen);
 }
@@ -77,4 +65,7 @@ void Init_Rowid()
    rb_enable_super(cRowid, "initialize");
    rb_define_method(cRowid, "to_s", rowid_to_s, 0);
    rb_define_method(cRowid, "to_builtin", rowid_to_builtin, 0);
+
+   /* register types handled by me */
+   registry_add(TYPE_REGISTRY, SQLT_RDD, cRowid);
 }

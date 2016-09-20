@@ -16,40 +16,44 @@ VALUE varchar_initialize(int argc, VALUE *argv, VALUE self)
 
    oci9_define_buf *bp;
    Data_Get_Struct(self, oci9_define_buf, bp);
-   int size;
-   char *value;
    VALUE str;
+   oci9_handle *parm_h;
+   ub4 col_size;
 
-   switch (argc)
-   {
-      case 1:
-         if (NIL_P(argv[0]))
+   if (argc == 1)
+      switch (TYPE(argv[0]))
+      {
+         case T_ARRAY:
+            /* used by Statement to pick a type to receive column data
+             * argv[0] = [ svc_h, ses_h, parm_h, ... ]
+             *
+             * get attributes for column_info
+             */
+            Data_Get_Struct(rb_ary_entry(argv[0], 2), oci9_handle, parm_h);
+            if (OCIAttrGet(parm_h->ptr, OCI_DTYPE_PARAM, (dvoid*) &col_size, 0, OCI_ATTR_DATA_SIZE, err_h))
+               error_raise("Could not get column size", "varchar_initialize", __FILE__, __LINE__);
+            col_size &= 0x0000ffff; /* XXX high bytes getting corrupted */
+            rb_hash_aset(rb_iv_get(self, "@column_info"), rb_str_new2("size"), INT2FIX(col_size));
+            /* prepare to receive varchar of length col_size */
+            bp->val = ALLOC_N(char, col_size + 1);
+            bp->len = col_size + 1;
             break;
-         if (rb_respond_to(argv[0], rb_intern("to_s")))
+
+         case T_NIL:
+            /* leave as empty string */
+            break;
+
+         default:
             /* use arg (converted to a String) as initial value */
-            str = rb_funcall(argv[0], rb_intern("to_s"), 0);
-         else
-            rb_raise(rb_eArgError, "Cannot handle argument of type %s", rb_class2name(CLASS_OF(argv[0])));
-         value = rb_str2cstr(str, &size);
-         bp->val = ALLOC_N(char, size + 1);
-         strncpy(bp->val, value, size + 1);
-         bp->len = size + 1;
-         bp->ind = 0;
-         break;
-
-      case 5:
-         /* argv[] = { internal SQLT, size, precision, scale, ses_h }
-          * used only when defining select-list in Statement#allocate_row
-          *
-          * prepare to receive varchar of length size
-          */
-         bp->val = ALLOC_N(char, FIX2INT(argv[1]) + 1);
-         bp->len = FIX2INT(argv[1]) + 1;
-         break;
-
-      default:
-         rb_raise(rb_eArgError, "wrong # of arguments(%d for 1 or 5)", argc);
-   }
+            str = rb_funcall(argv[0], ID_TO_S, 0);
+            bp->len = RSTRING(str)->len + 1;
+            bp->val = ALLOC_N(char, bp->len + 1);
+            strncpy(bp->val, RSTRING(str)->ptr, bp->len + 1);
+            bp->ind = 0;
+            break;
+      }
+   else
+      rb_raise(rb_eArgError, "wrong # of arguments(%d for 1)", argc);
 
    /* read/write this as a null-terminated C string */
    bp->sqlt = SQLT_STR;
@@ -81,4 +85,8 @@ void Init_Varchar()
    rb_enable_super(cVarchar, "initialize");
    rb_define_method(cVarchar, "to_s", varchar_to_s, 0);
    rb_define_method(cVarchar, "to_builtin", varchar_to_builtin, 0);
+
+   /* register types handled by me */
+   registry_add(TYPE_REGISTRY, SQLT_CHR, cVarchar);
+   registry_add(TYPE_REGISTRY, SQLT_AFC, cVarchar);
 }

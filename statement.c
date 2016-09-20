@@ -30,7 +30,7 @@ VALUE stmt_prepare(VALUE klass, VALUE ses_h, VALUE svc_h, VALUE sql, VALUE yield
    rb_iv_set(self, "@stmt_h", v_stmt_h);
 
    /* prepare statement */
-   if (OCIStmtPrepare((OCIStmt*) stmt_h->ptr, err_h, STR2CSTR(sql), RSTRING(sql)->len, OCI_NTV_SYNTAX, OCI_DEFAULT))
+   if (OCIStmtPrepare((OCIStmt*) stmt_h->ptr, err_h, RSTRING(sql)->ptr, RSTRING(sql)->len, OCI_NTV_SYNTAX, OCI_DEFAULT))
       error_raise("Could not prepare statement", "stmt_prepare", __FILE__, __LINE__);
 
    /* save session & service handles from connection */
@@ -55,8 +55,9 @@ VALUE stmt_prepare(VALUE klass, VALUE ses_h, VALUE svc_h, VALUE sql, VALUE yield
    rb_iv_set(self, "@sqlfcode", INT2FIX((int)sqlfcode));
    rb_define_attr(CLASS_OF(self), "sqlfcode", 1, 0);
 
-   /* initialize executing */
+   /* initialize executing & bindlist */
    rb_iv_set(self, "@executing", Qfalse);
+   rb_iv_set(self, "@bindlist", rb_ary_new());
 
    if (rb_block_given_p() && RTEST(yieldflag))
    {
@@ -102,10 +103,12 @@ VALUE stmt_bind_param(VALUE self, VALUE v_label, VALUE val)
    oci9_define_buf *bp;
    Data_Get_Struct(obj, oci9_define_buf, bp);
    OCIBind *bind_h = NULL;
-   sb4 labellen;
-   char *label = rb_str2cstr(v_label, &labellen);
-   if (OCIBindByName(stmt_h->ptr, &bind_h, err_h, label, labellen, bp->val, bp->len, bp->sqlt, &bp->ind, 0, 0, 0, 0, OCI_DEFAULT))
+   if (OCIBindByName(stmt_h->ptr, &bind_h, err_h, RSTRING(v_label)->ptr, RSTRING(v_label)->len, bp->val, bp->len,
+         bp->sqlt, &bp->ind, 0, 0, 0, 0, OCI_DEFAULT))
       error_raise("Could not bind variable", "stmt_bind_param", __FILE__, __LINE__);
+
+   /* save bind object */
+   rb_ary_push(rb_iv_get(self, "@bindlist"), obj);
 
    return self;
 }
@@ -117,25 +120,26 @@ VALUE stmt_bind_params(VALUE self, VALUE args)
    Data_Get_Struct(rb_iv_get(self, "@stmt_h"), oci9_handle, stmt_h);
 
    oci9_define_buf *bp;
-   VALUE bindlist = rb_iv_get(self, "@bindlist");
-   if (NIL_P(bindlist))
-      bindlist = rb_ary_new();
-   VALUE arg, obj;
    OCIBind *bind_h;
+   VALUE arg, obj;
+   VALUE bindlist = rb_iv_get(self, "@bindlist");
+
+   /* bind each object */
    if (RTEST(args))
       while(RTEST(arg = rb_ary_shift(args)))
       {
+         /* create suitable bind object & bind it */
          obj = stmt_make_bind_object(arg);
          bind_h = NULL;
          Data_Get_Struct(obj, oci9_define_buf, bp);
-         if (OCIBindByPos(stmt_h->ptr, &bind_h, err_h, FIX2INT(rb_funcall(bindlist, rb_intern("size"), 0)) + 1,
-               bp->val, bp->len, bp->sqlt, &bp->ind, 0, 0, 0, 0, OCI_DEFAULT))
+         if (OCIBindByPos(stmt_h->ptr, &bind_h, err_h, RARRAY(bindlist)->len + 1, bp->val, bp->len, bp->sqlt, &bp->ind,
+               0, 0, 0, 0, OCI_DEFAULT))
             error_raise("Could not bind variable", "stmt_bind", __FILE__, __LINE__);
 
+         /* save bind object */
          rb_ary_push(bindlist, obj);
       }
 
-   rb_iv_set(self, "@bindlist", bindlist);
    return self;
 }
 
@@ -149,69 +153,47 @@ void stmt_allocate_row(VALUE self)
    ub4 columncount;
    if (OCIAttrGet(stmt_h->ptr, OCI_HTYPE_STMT, &columncount, 0, OCI_ATTR_PARAM_COUNT, err_h))
       error_raise("Could not get column count", "stmt_allocate_row", __FILE__, __LINE__);
-   rb_iv_set(self, "@columncount", INT2FIX((int)columncount));
-   rb_define_attr(CLASS_OF(self), "columncount", 1, 0);
 
    /* build array of column info & array of objects to receive column values */
    VALUE cols = rb_ary_new2(columncount);
    VALUE selectlist = rb_ary_new2(columncount);
+   VALUE col;
    int i;
    OCIParam *parm_h;
-   OCIDefine* def_h;
    char *col_name;
    ub4 col_name_len;
-   ub2 col_type;
-   ub2 col_size;
-   sb2 precision;
-   sb1 scale;
-   for (i=0; i<columncount; i++)
+   for (i=1; i<=columncount; i++)
    {
-      VALUE col = rb_hash_new();
-      /* get column i+1 parameter */
+      /* get column i parameter */
       parm_h = (OCIParam*) NULL;
-      col_name = NULL;
-      if (OCIParamGet(stmt_h->ptr, OCI_HTYPE_STMT, err_h, (dvoid **) &parm_h, i + 1))
+      if (OCIParamGet(stmt_h->ptr, OCI_HTYPE_STMT, err_h, (dvoid **) &parm_h, i))
          error_raise("Could not get statement parameter", "stmt_allocate_row", __FILE__, __LINE__);
+
       /* get column name from parameter */
       if (OCIAttrGet(parm_h, OCI_DTYPE_PARAM, &col_name, &col_name_len, OCI_ATTR_NAME, err_h))
          error_raise("Could not get column name", "stmt_allocate_row", __FILE__, __LINE__);
+
+      /* create & define a suitable receiver for this column's data;
+       * add the object to the select-list array
+       */
+      VALUE obj = rb_funcall(cDatatype, ID_SELECTNEW, 5, TYPE_REGISTRY, rb_iv_get(self, "@svc_h"),
+         rb_iv_get(self, "@ses_h"), handle_wrap(parm_h), rb_ary_new());
+      rb_funcall(obj, ID_OCI_DEFINE, 2, rb_iv_get(self, "@stmt_h"), INT2FIX(i));
+      rb_ary_push(selectlist, obj);
+
+      /* put object's attributes into a hash;
+       * add the hash to the column_info array
+       */
+      col = rb_funcall(obj, rb_intern("column_info"), 0);
       rb_hash_aset(col, rb_str_new2("name"), rb_str_new(col_name, col_name_len));
-      /* get column type */
-      if (OCIAttrGet(parm_h, OCI_DTYPE_PARAM, &col_type, 0, OCI_ATTR_DATA_TYPE, err_h))
-         error_raise("Could not get column type", "stmt_allocate_row", __FILE__, __LINE__);
-      rb_hash_aset(col, rb_str_new2("type"), INT2FIX((int)col_type));
-      /* get column size */
-      if (OCIAttrGet(parm_h, OCI_DTYPE_PARAM, &col_size, 0, OCI_ATTR_DATA_SIZE, err_h))
-         error_raise("Could not get column size", "stmt_allocate_row", __FILE__, __LINE__);
-      rb_hash_aset(col, rb_str_new2("size"), INT2FIX((int)col_size));
-      /* get column precision */
-      if (OCIAttrGet(parm_h, OCI_DTYPE_PARAM, (dvoid*) &precision, 0, OCI_ATTR_PRECISION, err_h))
-         error_raise("Could not get column precision", "stmt_allocate_row", __FILE__, __LINE__);
-      rb_hash_aset(col, rb_str_new2("precision"), INT2FIX((long)precision));
-      /* get column scale */
-      if (OCIAttrGet(parm_h, OCI_DTYPE_PARAM, &scale, 0, OCI_ATTR_SCALE, err_h))
-         error_raise("Could not get column scale", "stmt_allocate_row", __FILE__, __LINE__);
-      rb_hash_aset(col, rb_str_new2("scale"), INT2FIX((int)scale));
-      /* add column hash to array */
       rb_ary_push(cols, col);
-      /* define space for output of column value */
-      oci9_define_buf *bp;
-      VALUE argv[] = { INT2FIX((int)col_type), INT2FIX(col_size + 1), INT2FIX(precision), INT2FIX(scale),
-         rb_iv_get(self, "@ses_h") };
-      VALUE dbuf = datatype_new(5, argv, cDatatype);
-      Data_Get_Struct(dbuf, oci9_define_buf, bp);
-      def_h = (OCIDefine*) 0;
-      if (OCIDefineByPos(stmt_h->ptr, &def_h, err_h, i + 1, bp->val, bp->len, bp->sqlt,
-            (dvoid*) &bp->ind, 0, 0, OCI_DEFAULT))
-         error_raise("Could not define column", "stmt_allocate_row", __FILE__, __LINE__);
-      rb_ary_push(selectlist, dbuf);
+
    }
    rb_iv_set(self, "@column_info", cols);
    rb_define_attr(CLASS_OF(self), "column_info", 1, 0);
 
    /* create an array that fetch will populate & return on each call */
    rb_iv_set(self, "@selectlist", selectlist);
-   rb_define_attr(CLASS_OF(self), "selectlist", 1, 0);
 }
 
 VALUE stmt_execute(VALUE self)
@@ -226,7 +208,7 @@ VALUE stmt_execute(VALUE self)
 
    /* set iteration parameter */
    int iters = 0;
-   if (FIX2INT(rb_iv_get(self, "@ocitype")) != 1) /* not a select */
+   if (FIX2INT(rb_iv_get(self, "@ocitype")) != 1) /* not a SELECT */
       iters = 1;
 
    /* execute statement */
@@ -242,7 +224,7 @@ VALUE stmt_execute(VALUE self)
       ub2 offset;
       OCIAttrGet(stmt_h->ptr, OCI_HTYPE_STMT, &offset, 0, OCI_ATTR_PARSE_ERROR_OFFSET, err_h);
       error_raise_sql("Could not execute statement", "stmt_execute", __FILE__, __LINE__,
-         STR2CSTR(rb_iv_get(self, "@text")), offset);
+         RSTRING(rb_iv_get(self, "@text"))->ptr, offset);
    }
 
    /* if statement is a SELECT, then create the space to receive the row data */
@@ -306,7 +288,7 @@ VALUE stmt_fetch(VALUE self)
    {
       while (stmt_do_fetch(stmt_h->ptr))
          rb_yield(rb_iv_get(self, "@selectlist"));
-      //stmt_finish(self);
+      stmt_finish(self);
       return Qnil;
    }
    else if (stmt_do_fetch(stmt_h->ptr))
