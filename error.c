@@ -1,6 +1,6 @@
 /*
  * Ruby9i -- a Ruby library for accessing Oracle9i through the OCI
- * Copyright (C) 2003 James Edwin Cain <info@jimcain.us>
+ * Copyright (C) 2003-2004 James Edwin Cain <ruby9i@jimcain.us>
  * 
  * This file is part of the Ruby9i library.  This Library is free software;
  * you can redistribute it and/or modify it under the terms of the license
@@ -11,8 +11,6 @@
 #include "ruby9i.h"
 
 #define MAX_BUF_SZ 1000
-
-VALUE ERR_LOC_PTR, ERR_LOC_PTR_ESC;
 
 VALUE error_exception(int argc, VALUE *argv, VALUE klass)
 {
@@ -73,17 +71,15 @@ void error_get_sql_errstr(VALUE self, VALUE *errline, VALUE *errptr)
    VALUE offset = rb_iv_get(self,"@offset");
    if (NIL_P(offset))
       return;
-   rb_funcall(sql, rb_intern("[]="), 3, offset, INT2FIX(0), ERR_LOC_PTR);
-   VALUE not_crlf = rb_str_new2("[^\\r\\n]*");
-   VALUE pattern = rb_str_dup(not_crlf);
-   rb_str_concat(rb_str_concat(pattern, ERR_LOC_PTR_ESC), not_crlf);
-   VALUE re = rb_funcall(rb_cRegexp, rb_intern("compile"), 1, pattern);
-   if (RTEST(rb_funcall(re, rb_intern("match"), 1, sql)))
-   {
-      *errline = rb_funcall(rb_gv_get("$&"), rb_intern("sub"), 2, ERR_LOC_PTR_ESC, rb_str_new2(""));
-      VALUE mdbegin = rb_funcall(rb_gv_get("$~"), rb_intern("begin"), 1, INT2FIX(0));
-      *errptr = rb_str_concat(rb_funcall(rb_str_new2(" "), rb_intern("*"), 1, mdbegin), rb_str_new2("^"));
-   }
+   int i, start, length;
+   for (i = FIX2INT(offset); i >= 0 && RSTRING(sql)->ptr[i] != '\n' && RSTRING(sql)->ptr[i] != '\r'; i--)
+      /* do nothing */ ;
+   start = i + 1;
+   for (i = FIX2INT(offset); i < RSTRING(sql)->len && RSTRING(sql)->ptr[i] != '\n' && RSTRING(sql)->ptr[i] != '\r'; i++)
+      /* do nothing */ ;
+   length = i - start;
+   *errline = rb_funcall(sql, ID_SUBSCRIPT, 2, INT2FIX(start), INT2FIX(length));
+   *errptr = rb_str_concat(rb_funcall(rb_str_new2(" "), rb_intern("*"), 1, INT2FIX(FIX2INT(offset)-start)), rb_str_new2("^"));
 }
 
 VALUE error_to_s(VALUE self)
@@ -124,9 +120,4 @@ void Init_Error()
    rb_enable_super(eError, "initialize");
    rb_define_method(eError, "message", error_to_s, 0);
    rb_define_method(eError, "to_s", error_to_s, 0);
-
-   rb_global_variable(&ERR_LOC_PTR);
-   rb_global_variable(&ERR_LOC_PTR_ESC);
-   ERR_LOC_PTR = rb_str_new2("{{^}}");
-   ERR_LOC_PTR_ESC = rb_funcall(rb_cRegexp, rb_intern("escape"), 1, ERR_LOC_PTR);
 }

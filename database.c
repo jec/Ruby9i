@@ -1,6 +1,6 @@
 /*
  * Ruby9i -- a Ruby library for accessing Oracle9i through the OCI
- * Copyright (C) 2003 James Edwin Cain <info@jimcain.us>
+ * Copyright (C) 2003-2004 James Edwin Cain <ruby9i@jimcain.us>
  * 
  * This file is part of the Ruby9i library.  This Library is free software;
  * you can redistribute it and/or modify it under the terms of the license
@@ -12,7 +12,7 @@
 
 VALUE db_quote(VALUE klass, VALUE sql)
 {
-   return rb_funcall(sql, rb_intern("gsub"), 2, rb_str_new2("/'/"), rb_str_new2("''"));
+   return rb_funcall(sql, rb_intern("gsub"), 2, rb_str_new2("'"), rb_str_new2("''"));
 }
 
 VALUE db_initialize(int argc, VALUE *argv, VALUE self)
@@ -20,6 +20,8 @@ VALUE db_initialize(int argc, VALUE *argv, VALUE self)
    /* process arguments */
    VALUE user, pass, db;
    rb_scan_args(argc, argv, "3", &db, &user, &pass);
+   if (TYPE(db) != T_STRING || TYPE(user) != T_STRING || TYPE(pass) != T_STRING)
+      error_raise("method new() requires three string arguments", "db_initialize", __FILE__, __LINE__);
 
    /* create service, server and session handles */
    oci9_handle *svc_h;
@@ -164,8 +166,9 @@ VALUE db_connected(VALUE self)
 
 VALUE db_ping(VALUE self)
 {
-   VALUE stmt = stmt_execute(stmt_prepare(cStatement, rb_iv_get(self, "@ses_h"), rb_iv_get(self, "@svc_h"),
-      rb_str_new2("select 1 from dual"), Qfalse));
+   VALUE stmt = stmt_prepare(cStatement, rb_iv_get(self, "@ses_h"), rb_iv_get(self, "@svc_h"),
+      rb_str_new2("select 1 from dual"), Qfalse);
+   stmt_execute(stmt);
    stmt_fetch(stmt);
    stmt_finish(stmt);
    return Qtrue;

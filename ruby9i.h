@@ -52,7 +52,6 @@ extern VALUE cIntervalDS;
 extern VALUE cStatement;
 
 extern VALUE eError;
-extern VALUE ERR_LOC_PTR, ERR_LOC_PTR_ESC;
 
 extern VALUE TYPE_REGISTRY;
 

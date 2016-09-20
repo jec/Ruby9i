@@ -1,5 +1,5 @@
-Release Notes for the Ruby9i Library v0.2.0
-July 12, 2003
+Release Notes for the Ruby9i Library v0.2.1
+January 25, 2004
 
 
 General
@@ -14,9 +14,13 @@ Limitations
    Support for the following Oracle features is still missing but planned for
    the 0.3.0 release:
 
+      * LOBs
+
+   Support for the following has been postponed indefinitely due to lack of
+   documentation:
+
       * User-defined types (named types)
       * Collections
-      * LOBs
 
    In addition, some basic instance methods for the datatypes are still
    missing, in particular the basic string functionality (such as
@@ -32,4 +36,5 @@ Known Issues
 
 Documentation
 
-   Documentation is currently underway and will be released within a few days.
+   Documentation is available on the project Web site. Please visit
+   <http://ruby9i.sourceforge.net/>.

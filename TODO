@@ -1,0 +1,37 @@
+To-do list for the Ruby9i Library
+
+Specific Changes
+
+   Interval#+ should accept numbers and timestamps as an argument and do the
+   proper conversion.
+
+   Interval#- should accept numbers as an argument and do the proper
+   conversion.
+
+   Interval#<=> should accept numbers as an argument and do the proper
+   conversion.
+
+   Date#+ should accept a Float.
+
+   Date#last_day and #next_day should verify that their arguments are Strings.
+
+   BaseInterval should have #to_i.
+
+   BaseInterval#to_s should take optional precision parameter(s). Probably
+   requires moving it to the subclasses.
+
+   Intervals should allow setting & getting of their precision parameters.
+
+   IntervalDS should have #day, #hour, #min, #sec, #usec, #fsec.
+
+   IntervalDS#assign should take an IntervalDS.
+
+   IntervalYM should have #year, #mon, #month.
+
+   Varchar#new should allow no arguments.
+
+General API Changes
+
+   Implement LOB support.
+
+   Implement #coerce everywhere as appropriate.

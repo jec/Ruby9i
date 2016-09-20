@@ -1,6 +1,6 @@
 /*
  * Ruby9i -- a Ruby library for accessing Oracle9i through the OCI
- * Copyright (C) 2003 James Edwin Cain <info@jimcain.us>
+ * Copyright (C) 2003-2004 James Edwin Cain <ruby9i@jimcain.us>
  * 
  * This file is part of the Ruby9i library.  This Library is free software;
  * you can redistribute it and/or modify it under the terms of the license

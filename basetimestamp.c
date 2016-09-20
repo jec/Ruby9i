@@ -1,6 +1,6 @@
 /*
  * Ruby9i -- a Ruby library for accessing Oracle9i through the OCI
- * Copyright (C) 2003 James Edwin Cain <info@jimcain.us>
+ * Copyright (C) 2003-2004 James Edwin Cain <ruby9i@jimcain.us>
  * 
  * This file is part of the Ruby9i library.  This Library is free software;
  * you can redistribute it and/or modify it under the terms of the license
@@ -124,7 +124,7 @@ VALUE bts_initialize(int argc, VALUE *argv, VALUE self)
       ub1 fsprecision;
       if (OCIAttrGet(parm_h->ptr, OCI_DTYPE_PARAM, &fsprecision, 0, OCI_ATTR_FSPRECISION, err_h))
          error_raise("Could not get second precision", "ivds_initialize", __FILE__, __LINE__);
-      rb_funcall(rb_iv_get(self, "@default_fmt"), rb_intern("sub!"), 2, rb_reg_new("ff\\d", strlen("ff\\d"), 0),
+      rb_funcall(rb_iv_get(self, "@default_fmt"), rb_intern("sub!"), 2, rb_reg_new("[fF][fF]\\d", strlen("[fF][fF]\\d"), 0),
          rb_str_concat(rb_str_new2("ff"), rb_funcall(INT2FIX(fsprecision), ID_TO_S, 0)));
       rb_hash_aset(rb_iv_get(self, "@column_info"), rb_str_new2("secondprecision"), INT2FIX(fsprecision));
    }
@@ -141,7 +141,7 @@ VALUE bts_initialize(int argc, VALUE *argv, VALUE self)
             rb_raise(rb_eTypeError, "argument 2 is wrong type (found %s, expected String)", rb_class2name(CLASS_OF(fmt)));
          rb_iv_set(self, "@default_fmt", fmt);
          /* get the 'ffx' in fmt and set secprec = x */
-         VALUE ary = rb_funcall(fmt, rb_intern("scan"), 1, rb_reg_new("ff(\\d)", strlen("ff(\\d)"), 0));
+         VALUE ary = rb_funcall(fmt, rb_intern("scan"), 1, rb_reg_new("[fF][fF](\\d)", strlen("[fF][fF](\\d)"), 0));
          VALUE secprec = rb_ary_entry(rb_funcall(ary, rb_intern("flatten"), 0), 0);
          if (RTEST(secprec))
             rb_iv_set(self, "@secondprecision", rb_funcall(secprec, ID_TO_I, 0));
@@ -415,7 +415,7 @@ VALUE bts_to_a(VALUE self)
    if (OCIDateTimeGetTime(hdl, err_h, (OCIDateTime*) bp->desc, &hour, &min, &sec, &fsec))
       error_raise("OCIDateTimeGetTime failed", "bts_to_a", __FILE__, __LINE__);
    return rb_ary_new3(8, INT2FIX(sec), INT2FIX(min), INT2FIX(hour), INT2FIX(day), INT2FIX(month), INT2FIX(year),
-      rb_funcall(bts_do_to_s(hdl, (OCIDateTime*) bp->desc, "D", secprec), ID_TO_I, 0),
+      INT2FIX(FIX2INT(rb_funcall(bts_do_to_s(hdl, (OCIDateTime*) bp->desc, "D", secprec), ID_TO_I, 0)) - 1),
       rb_funcall(bts_do_to_s(hdl, (OCIDateTime*) bp->desc, "DDD", secprec), ID_TO_I, 0));
 }
 

@@ -1,0 +1,43 @@
+Change log for Ruby9i
+
+   Version 0.2.1:
+
+      In BaseTimestamp (basetimestamp.c):
+
+         Changed #to_a to return the day of the week in the range 0-6 rather
+         than 1-7 in order to match the functionality of the built-in Time
+         class.
+
+         Changed #default_fmt= and #secondprecision= to use the pattern
+         /[fF][fF]\d/ rather than /ff\d/ to look for the second-precision
+         format string.
+
+      In Database (database.c):
+
+         Fixed #quote.
+
+         Fixed #do.
+
+         Changed #initialize to verify that all arguments are Strings.
+
+      In Datatype (datatype.c):
+
+         Removed some debugging printf() statements accidentally left in the
+         previous release.
+
+      In Date (date.c):
+
+         Changed #to_a to return the day of the week in the range 0-6 rather
+         than 1-7 in order to match the functionality of the built-in Time
+         class.
+
+      In Error (error.c):
+
+         Fixed function error_get_sql_errstr() (called by #to_s) to properly
+         extract the line of SQL text on which the error occurred, and
+         simplified the code.
+
+      In Handle (handle.c):
+
+         Removed some debugging printf() statements accidentally left in the
+         previous release.

@@ -5,7 +5,7 @@ The Ruby9i Library
    Oracle9i datatypes and object-relational features.  It provides two APIs,
    one implemented in the C extension (the "native" interface), and one
    implemented in a Ruby module that is DBI-compatible. Please visit the home
-   of Ruby9i <http://jimcain.us/ruby9i/> for more information.
+   of Ruby9i <http://ruby9i.sourceforge.net/> for more information.
 
 
 Requirements
@@ -26,13 +26,13 @@ Building And Installation
 Documentation
 
    Documentation is available for Ruby9i, typically in a separate tarball.  It
-   is available at <http://jimcain.us/ruby9i/>.
+   is available at <http://ruby9i.sourceforge.net/>.
 
 
 Support
 
    No formal support for Ruby9i is offered. You may contact the author at
-   ruby9i@jimcain.us. A mailing list will be available soon.
+   ruby9i@jimcain.us. A mailing list may be available soon.
 
 
 License

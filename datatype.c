@@ -1,6 +1,6 @@
 /*
  * Ruby9i -- a Ruby library for accessing Oracle9i through the OCI
- * Copyright (C) 2003 James Edwin Cain <info@jimcain.us>
+ * Copyright (C) 2003-2004 James Edwin Cain <ruby9i@jimcain.us>
  * 
  * This file is part of the Ruby9i library.  This Library is free software;
  * you can redistribute it and/or modify it under the terms of the license
@@ -27,7 +27,6 @@ dvoid *datatype_get_session_handle(VALUE self)
 
 void datatype_mark(void *bp)
 {
-   printf("in datatype_mark for %p\n", bp); /* XXX for testing purposes to know when the gc runs */
 }
 
 void datatype_free(void *bp)
@@ -57,15 +56,12 @@ VALUE datatype_select_coltype(int argc, VALUE *argv, VALUE self)
 /* used by Statement to create a suitable receiver for SELECT data */
 VALUE datatype_selectnew(int argc, VALUE *argv, VALUE klass)
 {
-printf("in datatype_selectnew for %s\n", rb_class2name(klass));
    VALUE typehash, v_svc_h, v_ses_h, v_parm_h, restary;
    rb_scan_args(argc, argv, "5", &typehash, &v_svc_h, &v_ses_h, &v_parm_h, &restary);
-printf("typehash=%s\n", RSTRING(rb_funcall(typehash, rb_intern("inspect"), 0))->ptr);
 
    /* ask the class to get the column type & any additional parameters */
    VALUE typeary = rb_funcall(klass, rb_intern("select_coltype"), 4, v_svc_h, v_ses_h, v_parm_h, restary);
    VALUE type = rb_ary_entry(typeary, 0);
-printf("type=%d\n", FIX2INT(type));
 
    /* add any additional parameters to restary */
    rb_funcall(restary, rb_intern("concat"), 1, rb_funcall(typeary, ID_SUBSCRIPT, 2, INT2FIX(1), 

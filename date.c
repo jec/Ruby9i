@@ -1,6 +1,6 @@
 /*
  * Ruby9i -- a Ruby library for accessing Oracle9i through the OCI
- * Copyright (C) 2003 James Edwin Cain <info@jimcain.us>
+ * Copyright (C) 2003-2004 James Edwin Cain <ruby9i@jimcain.us>
  * 
  * This file is part of the Ruby9i library.  This Library is free software;
  * you can redistribute it and/or modify it under the terms of the license
@@ -348,7 +348,7 @@ VALUE date_to_a(VALUE self)
    OCIDateGetDate((OCIDate*) bp->val, &year, &month, &day);
    OCIDateGetTime((OCIDate*) bp->val, &hour, &min, &sec);
    return rb_ary_new3(8, INT2FIX(sec), INT2FIX(min), INT2FIX(hour), INT2FIX(day), INT2FIX(month), INT2FIX(year),
-      rb_funcall(date_do_to_s((OCIDate*) bp->val, "D"), ID_TO_I, 0),
+      INT2FIX(FIX2INT(rb_funcall(date_do_to_s((OCIDate*) bp->val, "D"), ID_TO_I, 0)) - 1),
       rb_funcall(date_do_to_s((OCIDate*) bp->val, "DDD"), ID_TO_I, 0));
 }
 
